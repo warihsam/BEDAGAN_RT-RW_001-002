@@ -1,0 +1,44 @@
+PENTING — TAMBAHKAN KODE INI DI BAGIAN PALING BAWAH Code.gs YANG SUDAH ADA.
+JANGAN HAPUS ATAU GANTI FUNGSI BACKEND LAMA.
+
+function doPost(e) {
+  try {
+    const body = JSON.parse((e && e.postData && e.postData.contents) || "{}");
+    const allowed = [
+      "login", "logout", "cekSesi", "dashboard", "daftarWarga",
+      "ubahStatusWarga", "simpanTransaksi", "riwayatKeuangan",
+      "simpanJimpitan", "riwayatJimpitan", "daftarJadwal",
+      "simpanJadwalJimpitan", "daftarJadwalJimpitan", "simpanKehadiran",
+      "riwayatKehadiran", "daftarPengumuman", "buatPengumuman",
+      "laporanBulanan"
+    ];
+    const method = String(body.method || "");
+    const args = Array.isArray(body.args) ? body.args : [];
+    if (!allowed.includes(method)) throw new Error("Metode API tidak diizinkan.");
+    const handlers = {
+      login: login, logout: logout, cekSesi: cekSesi, dashboard: dashboard,
+      daftarWarga: daftarWarga, ubahStatusWarga: ubahStatusWarga,
+      simpanTransaksi: simpanTransaksi, riwayatKeuangan: riwayatKeuangan,
+      simpanJimpitan: simpanJimpitan, riwayatJimpitan: riwayatJimpitan,
+      daftarJadwal: daftarJadwal, simpanJadwalJimpitan: simpanJadwalJimpitan,
+      daftarJadwalJimpitan: daftarJadwalJimpitan, simpanKehadiran: simpanKehadiran,
+      riwayatKehadiran: riwayatKehadiran, daftarPengumuman: daftarPengumuman,
+      buatPengumuman: buatPengumuman, laporanBulanan: laporanBulanan
+    };
+    const result = handlers[method].apply(null, args);
+    return ContentService.createTextOutput(JSON.stringify(result))
+      .setMimeType(ContentService.MimeType.JSON);
+  } catch (err) {
+    return ContentService.createTextOutput(JSON.stringify({
+      success: false,
+      message: err && err.message ? err.message : String(err)
+    })).setMimeType(ContentService.MimeType.JSON);
+  }
+}
+
+CATATAN:
+1. Backend lama memakai doGet() untuk HTML Apps Script. Website Vite tidak memakai doGet tersebut.
+2. doPost di atas menambahkan endpoint API JSON tanpa mengubah database.
+3. Deploy ulang Apps Script sebagai Web App, Execute as: Me, akses sesuai kebutuhan.
+4. Untuk deployment Vercel, tambahkan Environment Variable GAS_WEB_APP_URL berisi URL Web App /exec.
+5. Fungsi doPost di atas memakai this[method]. Dispatch API sudah memakai daftar handler eksplisit agar hanya fungsi yang disetujui yang dapat dipanggil.
