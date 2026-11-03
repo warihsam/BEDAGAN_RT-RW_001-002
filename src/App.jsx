@@ -32,6 +32,7 @@ const NAV = [
   ['ronda', 'Jadwal Ronda', CalendarDays],
   ['kehadiran', 'Kehadiran', ClipboardCheck],
   ['pengumuman', 'Pengumuman', Megaphone],
+  ['notifikasi', 'Notifikasi', Bell],
   ['laporan', 'Laporan', ChartNoAxesCombined],
 ];
 
@@ -134,10 +135,8 @@ export default function App() {
         ronda: ['daftarJadwal', [token]],
         kehadiran: ['riwayatKehadiran', [token]],
         pengumuman: ['daftarPengumuman', [token]],
-        laporan: [
-          'laporanBulanan',
-          [token, new Date().toISOString().slice(0, 7)],
-        ],
+        laporan: ['laporanBulanan',[token, new Date().toISOString().slice(0, 7)],],
+        notifikasi: ['daftarNotifikasi', [token]],
       };
 
       const selected = methods[p];
@@ -575,12 +574,30 @@ export default function App() {
           )}
 
           {page === 'pengumuman' && (
-            <Announcements
-              rows={rows}
-              add={() => setModal('pengumuman')}
-            />
-          )}
-
+  <Announcements
+    rows={rows}
+    add={
+      user.role === 'admin'
+        ? () => setModal('pengumuman')
+        : null
+    }
+  />
+)}
+{page === 'notifikasi' && (
+  <Notifications
+    rows={rows}
+    add={user.role === 'admin' ? () => setModal('notifikasi') : null}
+    onRead={async (id) => {
+      try {
+        await call('tandaiNotifikasiDibaca', [token, id]);
+        await load('notifikasi');
+        say('Notifikasi ditandai sudah dibaca.');
+      } catch (err) {
+        setError(err.message || 'Gagal memperbarui notifikasi.');
+      }
+    }}
+  />
+)}
           {page === 'laporan' && (
             <Report d={data.laporan} />
           )}
@@ -1000,10 +1017,12 @@ function Announcements({ rows = [], add }) {
           <small>{safeRows.length} pengumuman</small>
         </div>
 
-        <button className="primary" onClick={add}>
-          <Plus size={16} />
-          Buat pengumuman
-        </button>
+        {add && (
+          <button className="primary" onClick={add}>
+            <Plus size={16} />
+            Buat pengumuman
+          </button>
+        )}
       </div>
 
       {safeRows.map((item, index) => (
@@ -1025,7 +1044,73 @@ function Announcements({ rows = [], add }) {
     </section>
   );
 }
+function Notifications({ rows = [], onRead, add }) {
+  const safeRows = Array.isArray(rows) ? rows : [];
 
+  const unread = safeRows.filter(
+    item => item.status === 'Belum Dibaca'
+  ).length;
+
+  return (
+    <section className="panel">
+      <div className="panel-title">
+        <div>
+          <h3>Notifikasi Saya</h3>
+          <small>
+            {unread} belum dibaca · {safeRows.length} total
+          </small>
+        </div>
+        {add && (
+          <button className="primary" onClick={add}>
+            <Plus size={16} />
+            Kirim notifikasi
+          </button>
+        )}
+      </div>
+
+      {safeRows.length ? (
+        safeRows.map((item, index) => {
+          const isUnread = item.status === 'Belum Dibaca';
+
+          return (
+            <article
+              className="announce"
+              key={item.id || index}
+              style={{
+                background: isUnread ? '#f0f5ff' : '#fff',
+                borderLeft: isUnread
+                  ? '4px solid #2563eb'
+                  : '4px solid #e5e7eb',
+                marginBottom: 12
+              }}
+            >
+              <small>
+                {item.jenis || 'Umum'} ·{' '}
+                {tanggal(item.waktu_kirim || item.jadwal_kirim)}
+              </small>
+
+              <h3>{item.judul}</h3>
+              <p>{item.pesan}</p>
+
+              {isUnread ? (
+                <button
+                  className="light"
+                  onClick={() => onRead(item.id)}
+                >
+                  Tandai sudah dibaca
+                </button>
+              ) : (
+                <small>✓ Sudah dibaca</small>
+              )}
+            </article>
+          );
+        })
+      ) : (
+        <p className="empty">Belum ada notifikasi.</p>
+      )}
+    </section>
+  );
+}
 // ========================================
 // LAPORAN
 // ========================================
@@ -1131,6 +1216,21 @@ function FormModal({
       ],
     ],
 
+    notifikasi: [
+      'Kirim notifikasi ke seluruh warga',
+      'buatNotifikasi',
+      [
+        ['judul', 'Judul notifikasi', 'text'],
+        ['pesan', 'Isi pesan', 'textarea'],
+        ['jenis', 'Jenis notifikasi', 'select', [
+          'Umum',
+          'Kegiatan',
+          'Keamanan',
+          'Keuangan',
+        ]],
+      ],
+    ],
+
     pengumuman: [
       'Buat pengumuman',
       'buatPengumuman',
@@ -1185,6 +1285,14 @@ function FormModal({
 
     if (type === 'jimpitan') {
       formData.nominal = Number(formData.nominal || 0);
+    }
+
+    if (type === 'notifikasi') {
+      return submit(
+        method,
+        [token, formData],
+        'Notifikasi berhasil dikirim ke warga aktif.'
+      );
     }
 
     if (type === 'kehadiran') {
